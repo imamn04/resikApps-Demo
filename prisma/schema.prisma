@@ -25,6 +25,8 @@ model User {
   updatedJobs    Job[]       @relation("JobUpdatedBy")
   uploadedPhotos JobPhoto[]
   auditLogs      AuditLog[]
+  payrollSlips   PayrollSlip[] @relation("UserPayrolls")
+  createdPayrolls PayrollSlip[] @relation("PayrollCreatedBy")
 
   @@map("users")
 }
@@ -120,4 +122,33 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+model PayrollSlip {
+  id             String    @id @default(uuid())
+  slipNumber     String    @unique
+  userId         String?
+  user           User?     @relation("UserPayrolls", fields: [userId], references: [id])
+  employeeName   String
+  employeeRole   String
+  month          Int
+  year           Int
+  periodStart    String
+  periodEnd      String
+  basicSalary    Float     @default(0)
+  jobCommission  Float     @default(0)
+  allowance      Float     @default(0)
+  bonus          Float     @default(0)
+  deductions     Float     @default(0)
+  netSalary      Float     @default(0)
+  paymentStatus  String    @default("DRAFT")
+  paymentDate    DateTime?
+  paymentMethod  String?
+  notes          String?   @db.Text
+  createdById    String
+  createdBy      User      @relation("PayrollCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("payroll_slips")
 }

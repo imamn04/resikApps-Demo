@@ -9,6 +9,8 @@ export type JobStatus =
 
 export type PhotoType = "BEFORE" | "AFTER";
 
+export type PayrollStatus = "DRAFT" | "APPROVED" | "PAID";
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -86,3 +88,37 @@ export interface JobData {
   photos?: JobPhotoData[];
 }
 
+export interface PayrollSlipData {
+  id: string;
+  slipNumber: string;
+  userId?: string | null;
+  user?: {
+    id: string;
+    name: string;
+    username: string;
+    phone?: string | null;
+  } | null;
+  employeeName: string;
+  employeeRole: string;
+  month: number;
+  year: number;
+  periodStart: string;
+  periodEnd: string;
+  basicSalary: number;
+  jobCommission: number;
+  allowance: number;
+  bonus: number;
+  deductions: number;
+  netSalary: number;
+  paymentStatus: PayrollStatus;
+  paymentDate?: string | null;
+  paymentMethod?: string | null;
+  notes?: string | null;
+  createdById: string;
+  createdBy?: {
+    id: string;
+    name: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}

@@ -22,6 +22,7 @@ import {
   PhoneCall,
   Bell,
   Search,
+  Banknote,
 } from "lucide-react";
 import { AuthUser } from "@/types";
 
@@ -147,6 +148,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
       href: "/reports",
       icon: BarChart3,
       roles: ["OWNER", "ADMIN", "VIEWER"],
+    },
+    {
+      label: "Slip Gaji (Payroll)",
+      href: "/payroll",
+      icon: Banknote,
+      roles: ["OWNER", "ADMIN"],
     },
     {
       label: "Manajemen Akun",

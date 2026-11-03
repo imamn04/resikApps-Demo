@@ -1,10 +1,11 @@
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 model User {
@@ -32,8 +33,8 @@ model Customer {
   id          String   @id @default(uuid())
   name        String
   phone       String   @unique
-  address     String
-  notes       String?
+  address     String   @db.Text
+  notes       String?  @db.Text
   totalOrders Int      @default(0)
   totalSpent  Float    @default(0)
   createdAt   DateTime @default(now())
@@ -64,7 +65,7 @@ model Job {
   customer       Customer  @relation(fields: [customerId], references: [id])
   serviceId      Int
   service        Service   @relation(fields: [serviceId], references: [id])
-  jobDetails     String?
+  jobDetails     String?   @db.Text
   scheduledDate  String    // YYYY-MM-DD
   scheduledTime  String?   // HH:mm
   technicianName String?
@@ -73,7 +74,7 @@ model Job {
   discount       Float     @default(0)
   totalPrice     Float     @default(0)
   status         String    @default("PENDING") // PENDING, DIJADWALKAN, DALAM_PENGERJAAN, SELESAI, DIBATALKAN
-  notes          String?
+  notes          String?   @db.Text
   createdById    String
   createdBy      User      @relation("JobCreatedBy", fields: [createdById], references: [id])
   updatedById    String?
@@ -97,7 +98,7 @@ model JobPhoto {
   filePath     String
   fileName     String
   fileSize     Int?
-  caption      String?
+  caption      String?  @db.Text
   uploadedById String
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   createdAt    DateTime @default(now())
@@ -112,7 +113,7 @@ model AuditLog {
   action    String   // CREATE, UPDATE, STATUS_CHANGE, DELETE, LOGIN
   entity    String   // JOB, CUSTOMER, USER, SERVICE
   entityId  String?
-  details   String?  // JSON string or notes
+  details   String?  @db.Text // JSON string or notes
   ipAddress String?
   jobId     String?
   job       Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -120,4 +121,3 @@ model AuditLog {
 
   @@map("audit_logs")
 }
-

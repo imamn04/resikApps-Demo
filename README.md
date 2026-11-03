@@ -2,7 +2,7 @@
 
 Sistem Informasi Manajemen Operasional Jasa Kebersihan & Technical Service untuk **Resik Purwokerto** ([@resikpurwokerto](https://www.instagram.com/resikpurwokerto)).
 
-Dibangun dengan arsitektur **Next.js 14 App Router**, **Prisma ORM**, **Tailwind CSS**, dan tema visual **Horizon UI** (*Midnight Navy & Sunflower Gold*).
+Dibangun dengan arsitektur **Next.js 14 App Router**, **Prisma ORM**, **MySQL Database**, **Tailwind CSS**, dan tema visual **Horizon UI** (*Midnight Navy & Sunflower Gold*).
 
 ---
 
@@ -17,12 +17,13 @@ Dibangun dengan arsitektur **Next.js 14 App Router**, **Prisma ORM**, **Tailwind
 
 2. **Manajemen Pekerjaan (Job Order):**
    - Penomoran otomatis berstandar: `RP-YYYYMMDD-XXXX`.
-   - Form input ramah jempol (*Mobile-First*) dengan kalkulator otomatis biaya layanan, biaya tambahan, dan diskon.
+   - Form input ramah jemmor (*Mobile-First*) dengan kalkulator otomatis biaya layanan, biaya tambahan, dan diskon.
    - Integrasi WhatsApp 1-Klik ke nomor pelanggan.
    - Cetak SPK / Nota pekerjaan siap print (*print-friendly*).
 
 3. **Dokumentasi Foto Lapangan (Before & After):**
    - Unggah dan simpan foto kondisi sebelum (*Before*) dan sesudah (*After*) pengerjaan teknisi.
+   - Tersimpan persisten di storage container / direktori `public/uploads`.
 
 4. **CRM Pelanggan:**
    - Pencarian otomatis nama/telepon pelanggan untuk mencegah duplikasi data pelanggan lama.
@@ -43,8 +44,10 @@ Dibangun dengan arsitektur **Next.js 14 App Router**, **Prisma ORM**, **Tailwind
 ## 🛠️ Stack Teknologi
 
 - **Framework Web:** Next.js 14 (App Router) + TypeScript + React 18
-- **Database:** SQLite (Lokal, portabel, zero-configuration)
+- **Database:** MySQL 8.0 (Relasional production-grade)
 - **ORM:** Prisma ORM v5
+- **Containerization:** Docker & Docker Compose (Multi-stage build)
+- **Database GUI:** phpMyAdmin terintegrasi via Docker
 - **Styling:** Tailwind CSS + Desain Sistem Horizon UI
 - **Data Visualization:** Recharts (Interactive Spline Area Chart)
 - **Ikon:** Lucide React
@@ -52,66 +55,89 @@ Dibangun dengan arsitektur **Next.js 14 App Router**, **Prisma ORM**, **Tailwind
 
 ---
 
-## 🚀 Panduan Instalasi & Menjalankan Proyek
+## 🐳 Panduan 1: Menjalankan dengan Docker (Rekomendasi)
 
-Ikuti langkah-langkah di bawah ini untuk menjalankan proyek ini dari nol di komputer atau server:
+Dengan Docker Compose, seluruh komponen (Next.js App, MySQL Database, phpMyAdmin, auto-migration skema, dan database seeding) akan berjalan secara otomatis dalam 1 perintah.
+
+### 1. Jalankan Container
+Buka terminal di direktori proyek dan jalankan:
+```bash
+docker compose up -d --build
+```
+
+Container yang akan otomatis berjalan:
+1. **`rpms-mysql`** (MySQL 8.0 di port `3306`)
+2. **`rpms-app`** (Next.js Application di port `3000`)
+   - Otomatis menjalankan migrasi skema tabel Prisma ke MySQL (`prisma db push`)
+   - Otomatis menjalankan seeding master data layanan dan akun demo (`prisma/seed.js`)
+3. **`rpms-phpmyadmin`** (Web Database GUI di port `8080`)
+
+### 2. Buka Aplikasi di Browser
+- **Aplikasi Web RPMS:** [http://localhost:3000](http://localhost:3000)
+- **phpMyAdmin (Database GUI):** [http://localhost:8080](http://localhost:8080)
+  - *Server:* `mysql`
+  - *Username:* `resik_user` (atau `root`)
+  - *Password:* `resik_password` (atau `rootpassword`)
+
+### 3. Perintah Docker Lainnya
+- **Melihat log aplikasi:**
+  ```bash
+  docker compose logs -f app
+  ```
+- **Menghentikan container:**
+  ```bash
+  docker compose down
+  ```
+- **Menghentikan dan menghapus volume database (reset total):**
+  ```bash
+  docker compose down -v
+  ```
+
+---
+
+## 💻 Panduan 2: Menjalankan Lokal (Tanpa Docker / via XAMPP MySQL)
+
+Jika ingin menjalankan aplikasi secara langsung di mesin lokal menggunakan MySQL lokal / XAMPP:
 
 ### 1. Prasyarat Sistem
-Pastikan perangkat Anda sudah terinstal:
-- **Node.js** versi 18 atau lebih baru (disarankan Node 20 LTS atau Node 22).
-- **Git**.
+- **Node.js** versi 18 atau 20 LTS
+- **MySQL / MariaDB** (misal via XAMPP MySQL di port 3306)
 
-### 2. Clone Repository
-```bash
-git clone https://github.com/imamn04/resik-purwokerto.git
-cd resik-purwokerto
+### 2. Buat Database di MySQL
+Buka phpMyAdmin XAMPP atau MySQL CLI, buat database baru:
+```sql
+CREATE DATABASE resik_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 3. Install Seluruh Dependensi Library
-```bash
-npm install
-```
-
-### 4. Konfigurasi Environment (.env)
-Salin file template `.env.example` menjadi `.env`:
-
-* **Di Windows (PowerShell):**
-  ```powershell
-  Copy-Item .env.example .env
-  ```
-* **Di Mac / Linux / Git Bash:**
-  ```bash
-  cp .env.example .env
-  ```
-
-Isi file `.env` default:
+### 3. Konfigurasi File `.env`
+Salin template `.env.example` ke `.env`:
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="mysql://root:@localhost:3306/resik_db"
 JWT_SECRET="resik-purwokerto-secure-auth-secret-key-32chars"
 NEXTAUTH_SECRET="resik-purwokerto-secure-auth-secret-key-32chars"
+PORT=3000
 ```
+*(Sesuaikan user/password jika MySQL Anda memiliki password).*
 
-### 5. Inisialisasi Database & Seeding Data Awal
-Jalankan perintah Prisma berikut untuk membuat file database dan mengisi master data layanan & akun:
+### 4. Install Dependensi & Sinkronkan Database
 ```bash
-npx prisma generate
-npx prisma db push
-node prisma/seed.js
+npm install
+npm run db:generate
+npm run db:push
+npm run db:seed
 ```
 
-### 6. Jalankan Server Aplikasi
-
-* **Mode Pengembangan (Development):**
+### 5. Jalankan Server Aplikasi
+- **Mode Development:**
   ```bash
   npm run dev
   ```
-  Buka browser Anda di: `http://localhost:3000`
-
-* **Mode Produksi (Production - Cepat & Optimal):**
+- **Mode Production:**
   ```bash
   npm run build
   npm run start
   ```
+Buka browser di [http://localhost:3000](http://localhost:3000).
 
 ---
 
@@ -130,22 +156,30 @@ Semua akun awal menggunakan kata sandi default: **`password123`**
 
 ---
 
-## 📁 Struktur Direktori Penting
+## 📁 Struktur Direktori Proyek
 
 ```
-resik-purwokerto/
-├── prisma/
-│   ├── schema.prisma      # Skema database relasional (User, Customer, Job, Service, AuditLog)
-│   └── seed.js            # Script seeding master data layanan dan akun demo
-├── src/
-│   ├── app/               # Next.js App Router (Halaman dashboard, jobs, customers, reports, dll)
-│   ├── components/        # Komponen UI Horizon, AppLayout, StatusBadge
-│   ├── lib/               # Helper utilities (format rupiah, tanggal Indonesia, auth JWT)
-│   └── types/             # Deklarasi tipe TypeScript
-├── .env.example           # Contoh file konfigurasi environment
-├── .gitignore             # File filter Git (mengabaikan node_modules, .next, .env, dev.db)
-├── package.json           # Dependensi proyek
-└── tailwind.config.ts     # Konfigurasi token warna Horizon (Midnight Navy & Amber Gold)
+resikApps/
+├── docker-compose.yml         # Docker compose di root workspace
+└── resik-purwokerto/
+    ├── Dockerfile             # Multi-stage production Docker build
+    ├── docker-compose.yml     # Docker compose konfigurasi layanan (App + MySQL + phpMyAdmin)
+    ├── docker-entrypoint.sh   # Script inisialisasi auto-migration & seed sebelum app start
+    ├── .dockerignore          # Daftar file yang diabaikan saat build image Docker
+    ├── .env.example           # Template environment variable (MySQL)
+    ├── .env                   # File konfigurasi environment
+    ├── prisma/
+    │   ├── schema.prisma      # Skema database MySQL (User, Customer, Job, Service, AuditLog)
+    │   └── seed.js            # Script seeding master data layanan dan akun demo
+    ├── src/
+    │   ├── app/               # Next.js App Router (Halaman dashboard, jobs, customers, reports, API)
+    │   ├── components/        # Komponen UI Horizon, AppLayout, StatusBadge
+    │   ├── lib/               # Helper utilities (format rupiah, tanggal Indonesia, auth JWT, prisma client)
+    │   └── types/             # Deklarasi tipe TypeScript
+    ├── public/
+    │   └── uploads/           # Direktori penyimpanan foto before/after (dipersistensi via Docker Volume)
+    ├── package.json           # Dependensi proyek & scripts (db:push, db:seed, db:migrate, dll)
+    └── tailwind.config.ts     # Konfigurasi token warna Horizon (Midnight Navy & Amber Gold)
 ```
 
 ---

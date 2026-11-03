@@ -1,0 +1,84 @@
+services:
+  # ---------------------------------------------------------------------------
+  # Database Service: MySQL 8.0
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: rpms-mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: resik_db
+      MYSQL_USER: resik_user
+      MYSQL_PASSWORD: resik_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - rpms_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - rpms-network
+
+  # ---------------------------------------------------------------------------
+  # Web App Service: Next.js 14 App (RPMS)
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rpms-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "mysql://resik_user:resik_password@mysql:3306/resik_db"
+      JWT_SECRET: "resik-purwokerto-secure-auth-secret-key-32chars"
+      NEXTAUTH_SECRET: "resik-purwokerto-secure-auth-secret-key-32chars"
+      PORT: 3000
+      NODE_ENV: "production"
+    volumes:
+      # Persistent volume untuk foto before/after yang diunggah
+      - rpms_uploads:/app/public/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - rpms-network
+
+  # ---------------------------------------------------------------------------
+  # Database GUI: phpMyAdmin (Opsional untuk kemudahan kelola DB di browser)
+  # Akses di: http://localhost:8080
+  # ---------------------------------------------------------------------------
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: rpms-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: resik_user
+      PMA_PASSWORD: resik_password
+      PMA_ARBITRARY: 1
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - rpms-network
+
+volumes:
+  rpms_mysql_data:
+    driver: local
+  rpms_uploads:
+    driver: local
+
+networks:
+  rpms-network:
+    driver: bridge

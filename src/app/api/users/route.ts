@@ -5,8 +5,8 @@ import bcrypt from "bcryptjs";
 
 export async function GET(req: NextRequest) {
   const user = getAuthFromRequest(req);
-  if (!user || user.role !== "OWNER") {
-    return NextResponse.json({ error: "Hanya Owner yang dapat mengakses daftar pengguna" }, { status: 403 });
+  if (!user || !hasPermission(user.role, ["OWNER", "ADMIN"])) {
+    return NextResponse.json({ error: "Hanya Owner dan Admin yang dapat mengakses daftar pengguna" }, { status: 403 });
   }
 
   try {

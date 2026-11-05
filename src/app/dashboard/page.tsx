@@ -27,11 +27,17 @@ import {
   FileText,
   Truck,
   Wrench,
+  Wallet,
+  ArrowDownCircle,
+  ArrowUpCircle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  Legend,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -40,6 +46,9 @@ import {
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
+  const [cashflowData, setCashflowData] = useState<any>(null);
+  const [poolOrders, setPoolOrders] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [agendaFilter, setAgendaFilter] = useState<"ALL" | "NEED_ACTION" | "TODAY" | "COMPLETED">("ALL");
   const [trendView, setTrendView] = useState<"revenue" | "jobs" | "both">("both");
@@ -60,10 +69,31 @@ export default function DashboardPage() {
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
-        const res = await fetch("/api/reports", { headers, credentials: "include" });
-        if (res.ok) {
-          const json = await res.json();
+        const [repRes, meRes, cfRes, poolRes] = await Promise.all([
+          fetch("/api/reports", { headers, credentials: "include" }),
+          fetch("/api/auth/me", { headers, credentials: "include" }),
+          fetch("/api/cashflow", { headers, credentials: "include" }).catch(() => null),
+          fetch("/api/jobs?isPool=true", { headers, credentials: "include" }).catch(() => null),
+        ]);
+
+        if (repRes.ok) {
+          const json = await repRes.json();
           setData(json);
+        }
+
+        if (meRes.ok) {
+          const uJson = await meRes.json();
+          setCurrentUser(uJson.user);
+        }
+
+        if (cfRes && cfRes.ok) {
+          const cfJson = await cfRes.json();
+          setCashflowData(cfJson);
+        }
+
+        if (poolRes && poolRes.ok) {
+          const pJson = await poolRes.json();
+          setPoolOrders(pJson.jobs || []);
         }
       } catch (err) {
         console.error("Fetch dashboard error:", err);
@@ -148,6 +178,131 @@ export default function DashboardPage() {
         </div>
       ) : data ? (
         <div className="space-y-6 sm:space-y-8">
+          {/* Pool Order Alert (Gojek Mode) */}
+          {poolOrders.length > 0 && (
+            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-800 to-[#111C44] text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in border border-blue-400/30">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0">
+                  <Truck className="w-6 h-6 text-amber-300" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                    <span>{poolOrders.length} Order Tersedia di Antrean Terbuka (Pool Gojek Mode)</span>
+                    <span className="text-[10px] bg-amber-400 text-[#111C44] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
+                      Siap Ambil
+                    </span>
+                  </h3>
+                  <p className="text-xs text-blue-100 mt-0.5">
+                    Order belum didisposisikan ke teknisi spesifik. Karyawan/teknisi dapat langsung mengambil job ini.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/jobs"
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-[#111C44] font-black text-xs shadow-horizon-glow transition-all active:scale-95 shrink-0 text-center"
+              >
+                Lihat & Ambil Order
+              </Link>
+            </div>
+          )}
+
+          {/* Ringkasan Finansial & Arus Kas (4 KPI Cards) */}
+          {cashflowData && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-black text-[#111C44] uppercase tracking-wider flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-emerald-600" />
+                  Ringkasan Finansial & Arus Kas Riil
+                </h2>
+                <Link
+                  href="/expenses"
+                  className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                >
+                  <span>Kelola Biaya Operasional</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+                {/* 1. Uang Masuk (Terima) */}
+                <div className="horizon-card p-4 sm:p-5 relative overflow-hidden group border-emerald-100 bg-gradient-to-br from-white to-emerald-50/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] sm:text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                      Uang Masuk (Terima)
+                    </span>
+                    <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
+                      <ArrowDownCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-base sm:text-2xl font-black text-emerald-700 mt-2 truncate">
+                    {formatRupiah(cashflowData.summary.totalIncome)}
+                  </p>
+                  <p className="text-[10px] sm:text-[11px] text-emerald-600 mt-0.5 font-medium truncate">
+                    Penerimaan order selesai
+                  </p>
+                </div>
+
+                {/* 2. Uang Keluar (Bayar) */}
+                <div className="horizon-card p-4 sm:p-5 relative overflow-hidden group border-rose-100 bg-gradient-to-br from-white to-rose-50/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] sm:text-xs font-bold text-rose-800 uppercase tracking-wider">
+                      Uang Keluar (Bayar)
+                    </span>
+                    <div className="p-2 rounded-xl bg-rose-100 text-rose-700">
+                      <ArrowUpCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-base sm:text-2xl font-black text-rose-600 mt-2 truncate">
+                    {formatRupiah(cashflowData.summary.totalExpense)}
+                  </p>
+                  <p className="text-[10px] sm:text-[11px] text-rose-500 mt-0.5 font-medium truncate">
+                    Operasional + komisi teknisi
+                  </p>
+                </div>
+
+                {/* 3. Penjualan Bulan Berjalan */}
+                <div className="horizon-card p-4 sm:p-5 relative overflow-hidden group border-amber-100 bg-gradient-to-br from-white to-amber-50/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] sm:text-xs font-bold text-amber-800 uppercase tracking-wider">
+                      Penjualan Bulan Ini
+                    </span>
+                    <div className="p-2 rounded-xl bg-amber-100 text-amber-700">
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-base sm:text-2xl font-black text-amber-600 mt-2 truncate">
+                    {formatRupiah(cashflowData.summary.currentMonthRevenue)}
+                  </p>
+                  <p className="text-[10px] sm:text-[11px] text-amber-700 mt-0.5 font-medium truncate">
+                    {cashflowData.summary.currentMonthOrdersCount} order diselesaikan bulan ini
+                  </p>
+                </div>
+
+                {/* 4. Total Saldo Kas/Bank */}
+                <div className="horizon-card p-4 sm:p-5 relative overflow-hidden group border-slate-200 bg-gradient-to-br from-white to-[#111C44]/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] sm:text-xs font-bold text-[#111C44] uppercase tracking-wider">
+                      Total Saldo Kas / Bank
+                    </span>
+                    <div className="p-2 rounded-xl bg-[#111C44]/10 text-[#111C44]">
+                      <Wallet className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p
+                    className={`text-base sm:text-2xl font-black mt-2 truncate ${
+                      cashflowData.summary.currentBalance >= 0 ? "text-[#111C44]" : "text-rose-600"
+                    }`}
+                  >
+                    {formatRupiah(cashflowData.summary.currentBalance)}
+                  </p>
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 font-medium truncate">
+                    Saldo riil kas & bank perusahaan
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 2. Horizon Grand Metric KPI Cards (2x2 on Mobile, 4 Cards on Desktop) */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
             {/* Card 1: Total Seluruh Pekerjaan */}
@@ -478,6 +633,102 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* 7 Days Cashflow Bar Chart (Masuk vs Keluar) */}
+          {cashflowData && cashflowData.sevenDaysTrend && (
+            <div className="horizon-card p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                <div>
+                  <h2 className="text-base font-black text-[#1B254B] flex items-center gap-2">
+                    <BarChart2 className="w-5 h-5 text-emerald-600" />
+                    Grafik Arus Kas 7 Hari Terakhir (Uang Masuk vs Uang Keluar)
+                  </h2>
+                  <p className="text-xs text-[#707E94] mt-0.5">
+                    Membandingkan penerimaan omzet dari order tervalidasi vs pengeluaran operasional & komisi per hari
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 text-xs font-bold bg-[#F4F7FE] px-3 py-1.5 rounded-2xl border border-slate-200/80">
+                  <span className="flex items-center gap-1.5 text-emerald-700">
+                    <span className="w-3 h-3 rounded-md bg-[#10B981] shrink-0" />
+                    Uang Masuk (Terima)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-rose-700">
+                    <span className="w-3 h-3 rounded-md bg-[#F43F5E] shrink-0" />
+                    Uang Keluar (Bayar)
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={cashflowData.sevenDaysTrend}
+                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                    <XAxis
+                      dataKey="date"
+                      stroke="#A3AED0"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11, fontWeight: 700, fill: "#707E94" }}
+                    />
+                    <YAxis
+                      stroke="#A3AED0"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 10, fontWeight: 600, fill: "#707E94" }}
+                      tickFormatter={(val: number) => {
+                        if (val >= 1000000) return `${(val / 1000000).toFixed(1)}jt`;
+                        if (val >= 1000) return `${(val / 1000).toFixed(0)}rb`;
+                        return String(val);
+                      }}
+                    />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="bg-[#111C44] text-white p-3 rounded-2xl shadow-xl border border-white/10 text-xs space-y-1">
+                              <p className="font-bold text-amber-400">Tanggal: {label}</p>
+                              {payload.map((entry: any, idx: number) => (
+                                <div key={idx} className="flex items-center justify-between gap-4">
+                                  <span className="flex items-center gap-1.5">
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-sm"
+                                      style={{ backgroundColor: entry.color }}
+                                    />
+                                    {entry.name === "income" ? "Uang Masuk" : "Uang Keluar"}:
+                                  </span>
+                                  <span className="font-black text-white">
+                                    {formatRupiah(entry.value)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Bar
+                      dataKey="income"
+                      name="income"
+                      fill="#10B981"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={36}
+                    />
+                    <Bar
+                      dataKey="expense"
+                      name="expense"
+                      fill="#F43F5E"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={36}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
           {/* 4. Horizon 2-Column Analytics: Monthly Growth & Top Services */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

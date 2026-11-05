@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
@@ -28,8 +29,13 @@ import {
   Sparkles,
   DollarSign,
   Tag,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import { JobData, AuthUser } from "@/types";
+import JobStepperTimeline from "@/components/jobs/JobStepperTimeline";
+import PhotoLightboxModal from "@/components/ui/PhotoLightboxModal";
+import PrintableInvoice from "@/components/jobs/PrintableInvoice";
 
 export default function JobDetailPage() {
   const params = useParams();
@@ -38,13 +44,64 @@ export default function JobDetailPage() {
 
   const [job, setJob] = useState<JobData | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [technicians, setTechnicians] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [photoType, setPhotoType] = useState<"BEFORE" | "AFTER">("BEFORE");
+  const [photoType, setPhotoType] = useState<"CHECKIN" | "BEFORE" | "AFTER">("BEFORE");
   const [caption, setCaption] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // Lightbox state
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Invoice Preview Modal state
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Prevent background scroll and hide mobile bottom bar when modal is active
+  useEffect(() => {
+    if (isInvoiceModalOpen || isLightboxOpen) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [isInvoiceModalOpen, isLightboxOpen]);
+
+  // Isolated Iframe Print Engine (Zero layout capture, 100% clean A4 PDF)
+  const handlePrintInvoice = () => {
+    setIsPrinting(true);
+    const iframeId = "resik-isolated-print-iframe";
+    let iframe = document.getElementById(iframeId) as HTMLIFrameElement;
+    if (iframe) {
+      iframe.remove();
+    }
+    iframe = document.createElement("iframe");
+    iframe.id = iframeId;
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    iframe.style.visibility = "hidden";
+    iframe.src = `/jobs/${jobId}/print?auto=true`;
+    document.body.appendChild(iframe);
+
+    setTimeout(() => {
+      setIsPrinting(false);
+    }, 2500);
+  };
 
   // Fetch Current User & Job
   const fetchJobData = async () => {
@@ -57,6 +114,17 @@ export default function JobDetailPage() {
       if (uRes.ok) {
         const uJson = await uRes.json();
         setCurrentUser(uJson.user);
+
+        if (["OWNER", "ADMIN"].includes(uJson.user.role)) {
+          fetch("/api/users")
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.users) {
+                setTechnicians(data.users.filter((u: any) => u.role === "STAFF_INPUT" || u.role === "ADMIN"));
+              }
+            })
+            .catch(() => {});
+        }
       }
 
       if (jRes.ok) {
@@ -174,6 +242,7 @@ export default function JobDetailPage() {
     );
   }
 
+  const checkinPhotos = job.photos?.filter((p) => p.photoType === "CHECKIN") || [];
   const beforePhotos = job.photos?.filter((p) => p.photoType === "BEFORE") || [];
   const afterPhotos = job.photos?.filter((p) => p.photoType === "AFTER") || [];
   const waUrl = getWhatsAppLink(
@@ -183,48 +252,51 @@ export default function JobDetailPage() {
 
   return (
     <AppLayout>
-      {/* Header and Print Area */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 no-print">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/jobs"
-            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
-                {job.jobNumber}
-              </h1>
-              <StatusBadge status={job.status} />
+      {/* Web Screen UI Container (Strictly Hidden on Print) */}
+      <div className="no-print space-y-6">
+        {/* Header Action Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/jobs"
+              className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono">
+                  {job.jobNumber}
+                </h1>
+                <StatusBadge status={job.status} />
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Dibuat pada {formatDateID(job.createdAt)} oleh {job.createdBy.name}
+              </p>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Dibuat pada {formatDateID(job.createdAt)} oleh {job.createdBy.name}
-            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Chat WhatsApp</span>
+            </a>
+
+            <button
+              type="button"
+              onClick={() => setIsInvoiceModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-all shadow-xs"
+            >
+              <Printer className="w-4 h-4 text-amber-500" />
+              <span>Cetak Nota / SPK</span>
+            </button>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          <a
-            href={waUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all"
-          >
-            <MessageCircle className="w-4 h-4" />
-            Chat WhatsApp
-          </a>
-
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-all shadow-xs"
-          >
-            <Printer className="w-4 h-4" />
-            Cetak Nota / SPK
-          </button>
-        </div>
-      </div>
 
       {statusMessage && (
         <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 no-print">
@@ -233,42 +305,18 @@ export default function JobDetailPage() {
         </div>
       )}
 
-      {/* Status Stepper Tracker */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs mb-6 no-print">
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
-          Alur & Status Pengerjaan Lapangan
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-          {[
-            { key: "PENDING", label: "1. Pending", desc: "Menunggu Penjadwalan" },
-            { key: "DIJADWALKAN", label: "2. Dijadwalkan", desc: "Petugas Ditugaskan" },
-            { key: "DALAM_PENGERJAAN", label: "3. Dikerjakan", desc: "Teknisi di Lokasi" },
-            { key: "SELESAI", label: "4. Selesai", desc: "Pekerjaan Dituntaskan" },
-          ].map((st) => {
-            const isActive = job.status === st.key;
-            return (
-              <button
-                key={st.key}
-                type="button"
-                onClick={() => handleUpdateStatus(st.key)}
-                className={`p-3 rounded-2xl border text-left transition-all ${
-                  isActive
-                    ? "bg-gradient-to-r from-amber-500 to-amber-400 text-[#111C44] border-transparent font-black shadow-horizon-glow"
-                    : "bg-[#F4F7FE] hover:bg-slate-200 text-[#1B254B] border-slate-200 font-bold"
-                }`}
-              >
-                <p className="font-black text-xs">{st.label}</p>
-                <p
-                  className={`text-[10px] mt-0.5 ${
-                    isActive ? "text-[#111C44] font-bold" : "text-[#707E94]"
-                  }`}
-                >
-                  {st.desc}
-                </p>
-              </button>
-            );
-          })}
-        </div>
+      {/* Vertical Interactive Stepper Timeline (ICRM Teknisi) */}
+      <div className="no-print">
+        <JobStepperTimeline
+          job={job}
+          currentUser={currentUser}
+          onRefresh={fetchJobData}
+          onOpenLightbox={(idx) => {
+            setLightboxIndex(idx);
+            setIsLightboxOpen(true);
+          }}
+          technicians={technicians}
+        />
       </div>
 
       {/* Main Grid: Details & Customer */}
@@ -366,6 +414,7 @@ export default function JobDetailPage() {
                     onChange={(e) => setPhotoType(e.target.value as any)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
                   >
+                    <option value="CHECKIN">🛡️ CHECK-IN & APD K3</option>
                     <option value="BEFORE">📸 SEBELUM (BEFORE)</option>
                     <option value="AFTER">✨ SESUDAH (AFTER)</option>
                   </select>
@@ -428,6 +477,59 @@ export default function JobDetailPage() {
 
             {/* Photos Gallery */}
             <div className="space-y-6">
+              {/* Check-in Section */}
+              <div>
+                <h3 className="text-xs font-bold text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 inline-block mb-3">
+                  Foto Bukti Tiba & APD K3 — {checkinPhotos.length}
+                </h3>
+                {checkinPhotos.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">Belum ada foto check-in / APD.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {checkinPhotos.map((p) => {
+                      const globalIdx = (job.photos || []).findIndex((item) => item.id === p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          className="group relative bg-slate-100 rounded-xl overflow-hidden border border-slate-200 cursor-pointer"
+                          onClick={() => {
+                            setLightboxIndex(globalIdx >= 0 ? globalIdx : 0);
+                            setIsLightboxOpen(true);
+                          }}
+                        >
+                          <img
+                            src={p.filePath}
+                            alt={p.caption || "Check-in"}
+                            className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="p-2 bg-white">
+                            <p className="text-[11px] font-semibold text-slate-800 truncate">
+                              {p.caption || "Check-in & APD"}
+                            </p>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                              <span>{new Date(p.createdAt).toLocaleDateString("id-ID")}</span>
+                              {currentUser?.role === "OWNER" && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeletePhoto(p.id);
+                                  }}
+                                  className="text-rose-500 hover:text-rose-700"
+                                  title="Hapus Foto"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Before Section */}
               <div>
                 <h3 className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 inline-block mb-3">
@@ -437,37 +539,46 @@ export default function JobDetailPage() {
                   <p className="text-xs text-slate-400 italic">Belum ada foto sebelum pekerjaan.</p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {beforePhotos.map((p) => (
-                      <div
-                        key={p.id}
-                        className="group relative bg-slate-100 rounded-xl overflow-hidden border border-slate-200"
-                      >
-                        <a href={p.filePath} target="_blank" rel="noopener noreferrer">
+                    {beforePhotos.map((p) => {
+                      const globalIdx = (job.photos || []).findIndex((item) => item.id === p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          className="group relative bg-slate-100 rounded-xl overflow-hidden border border-slate-200 cursor-pointer"
+                          onClick={() => {
+                            setLightboxIndex(globalIdx >= 0 ? globalIdx : 0);
+                            setIsLightboxOpen(true);
+                          }}
+                        >
                           <img
                             src={p.filePath}
                             alt={p.caption || "Before"}
                             className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
                           />
-                        </a>
-                        <div className="p-2 bg-white">
-                          <p className="text-[11px] font-semibold text-slate-800 truncate">
-                            {p.caption || "Dokumentasi Sebelum"}
-                          </p>
-                          <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
-                            <span>{new Date(p.createdAt).toLocaleDateString("id-ID")}</span>
-                            {currentUser?.role === "OWNER" && (
-                              <button
-                                onClick={() => handleDeletePhoto(p.id)}
-                                className="text-rose-500 hover:text-rose-700"
-                                title="Hapus Foto"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                          <div className="p-2 bg-white">
+                            <p className="text-[11px] font-semibold text-slate-800 truncate">
+                              {p.caption || "Dokumentasi Sebelum"}
+                            </p>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                              <span>{new Date(p.createdAt).toLocaleDateString("id-ID")}</span>
+                              {currentUser?.role === "OWNER" && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeletePhoto(p.id);
+                                  }}
+                                  className="text-rose-500 hover:text-rose-700"
+                                  title="Hapus Foto"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -481,37 +592,46 @@ export default function JobDetailPage() {
                   <p className="text-xs text-slate-400 italic">Belum ada foto sesudah pekerjaan.</p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {afterPhotos.map((p) => (
-                      <div
-                        key={p.id}
-                        className="group relative bg-slate-100 rounded-xl overflow-hidden border border-slate-200"
-                      >
-                        <a href={p.filePath} target="_blank" rel="noopener noreferrer">
+                    {afterPhotos.map((p) => {
+                      const globalIdx = (job.photos || []).findIndex((item) => item.id === p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          className="group relative bg-slate-100 rounded-xl overflow-hidden border border-slate-200 cursor-pointer"
+                          onClick={() => {
+                            setLightboxIndex(globalIdx >= 0 ? globalIdx : 0);
+                            setIsLightboxOpen(true);
+                          }}
+                        >
                           <img
                             src={p.filePath}
                             alt={p.caption || "After"}
                             className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
                           />
-                        </a>
-                        <div className="p-2 bg-white">
-                          <p className="text-[11px] font-semibold text-slate-800 truncate">
-                            {p.caption || "Dokumentasi Selesai"}
-                          </p>
-                          <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
-                            <span>{new Date(p.createdAt).toLocaleDateString("id-ID")}</span>
-                            {currentUser?.role === "OWNER" && (
-                              <button
-                                onClick={() => handleDeletePhoto(p.id)}
-                                className="text-rose-500 hover:text-rose-700"
-                                title="Hapus Foto"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                          <div className="p-2 bg-white">
+                            <p className="text-[11px] font-semibold text-slate-800 truncate">
+                              {p.caption || "Dokumentasi Selesai"}
+                            </p>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                              <span>{new Date(p.createdAt).toLocaleDateString("id-ID")}</span>
+                              {currentUser?.role === "OWNER" && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeletePhoto(p.id);
+                                  }}
+                                  className="text-rose-500 hover:text-rose-700"
+                                  title="Hapus Foto"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -609,98 +729,81 @@ export default function JobDetailPage() {
           </div>
         </div>
       </div>
-
-      {/* Printable Invoice / Surat Perintah Kerja (Hidden normally, visible only when printed) */}
-      <div className="hidden print-only p-8 text-black bg-white">
-        <div className="border-b-2 border-black pb-4 mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-black">RESIK PURWOKERTO</h1>
-            <p className="text-xs">Jasa Kebersihan & Technical Service Purwokerto</p>
-            <p className="text-xs">WhatsApp / Telp: 0812-3456-7890</p>
-          </div>
-          <div className="text-right">
-            <h2 className="text-lg font-bold">NOTA / SPK PEKERJAAN</h2>
-            <p className="text-sm font-mono font-bold">{job.jobNumber}</p>
-            <p className="text-xs">Tanggal: {formatDateID(job.scheduledDate)}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 text-xs mb-6">
-          <div>
-            <p className="font-bold uppercase">Data Pelanggan:</p>
-            <p className="font-semibold text-sm">{job.customer.name}</p>
-            <p>{job.customer.phone}</p>
-            <p>{job.customer.address}</p>
-          </div>
-          <div className="text-right">
-            <p className="font-bold uppercase">Petugas / Tim:</p>
-            <p className="font-semibold">{job.technicianName || "Tim Operasional"}</p>
-            <p>Layanan: {job.service.name}</p>
-            <p>Status: {job.status}</p>
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <table className="w-full text-xs border-collapse border border-black">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border border-black p-2 text-left">Deskripsi Layanan & Pekerjaan</th>
-                <th className="border border-black p-2 text-right">Biaya</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="border border-black p-2">
-                  <p className="font-bold">{job.service.name}</p>
-                  <p className="text-[11px] text-gray-700">{job.jobDetails || "-"}</p>
-                </td>
-                <td className="border border-black p-2 text-right">
-                  {formatRupiah(job.basePrice)}
-                </td>
-              </tr>
-              {job.extraFee > 0 && (
-                <tr>
-                  <td className="border border-black p-2">Biaya Tambahan</td>
-                  <td className="border border-black p-2 text-right">
-                    {formatRupiah(job.extraFee)}
-                  </td>
-                </tr>
-              )}
-              {job.discount > 0 && (
-                <tr>
-                  <td className="border border-black p-2">Diskon</td>
-                  <td className="border border-black p-2 text-right">
-                    -{formatRupiah(job.discount)}
-                  </td>
-                </tr>
-              )}
-              <tr className="font-bold bg-gray-50">
-                <td className="border border-black p-2 text-right">TOTAL TAGIHAN:</td>
-                <td className="border border-black p-2 text-right text-sm">
-                  {formatRupiah(job.totalPrice)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="grid grid-cols-2 gap-8 text-xs text-center mt-12 pt-8">
-          <div>
-            <p>Pelanggan,</p>
-            <div className="h-16" />
-            <p className="border-t border-black inline-block px-8 font-bold">
-              ({job.customer.name})
-            </p>
-          </div>
-          <div>
-            <p>Petugas Resik Purwokerto,</p>
-            <div className="h-16" />
-            <p className="border-t border-black inline-block px-8 font-bold">
-              ({job.technicianName || job.createdBy.name})
-            </p>
-          </div>
-        </div>
       </div>
+
+      {/* 100% Isolated Printable Invoice for Print / PDF Generation */}
+      <div className="hidden print-only">
+        <PrintableInvoice job={job} />
+      </div>
+
+      {/* Invoice Preview & Print Modal (Portalled to Document Body to Escape All Stacking Contexts) */}
+      {mounted &&
+        isInvoiceModalOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 md:p-6 bg-[#0B1437]/80 backdrop-blur-md no-print animate-fade-in">
+            <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/90 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              {/* Modal Header Toolbar */}
+              <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-gradient-to-r from-[#111C44] via-[#1B254B] to-[#1E293B] text-white flex items-center justify-between shrink-0 gap-3 border-b border-white/10">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-400/30">
+                    <Printer className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-xs sm:text-sm font-bold truncate text-white">Pratinjau Nota / SPK Resmi</h3>
+                    <p className="text-[10px] text-slate-300 hidden sm:block">Format A4 resmi terverifikasi sistem</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={`/jobs/${job.id}/print`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors"
+                    title="Buka dokumen di tab khusus untuk cetak/unduh PDF"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span className="hidden xs:inline sm:inline">Tab Khusus</span>
+                  </a>
+
+                  <button
+                    onClick={handlePrintInvoice}
+                    disabled={isPrinting}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-[#111C44] font-black text-xs shadow-horizon-glow transition-all active:scale-95 whitespace-nowrap disabled:opacity-75"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>{isPrinting ? "Menyiapkan Dokumen..." : "Cetak Sekarang (PDF)"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsInvoiceModalOpen(false)}
+                    className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors ml-0.5"
+                    aria-label="Tutup pratinjau"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body: Realistic Paper Sheet Preview with Balanced Spacing */}
+              <div className="flex-1 overflow-y-auto p-3 sm:p-6 md:p-8 bg-slate-100/90 flex justify-center">
+                <div className="w-full max-w-[210mm] bg-white shadow-xl rounded-2xl border border-slate-200/90 overflow-hidden">
+                  <PrintableInvoice job={job} />
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Full HD Photo Lightbox Modal */}
+      <PhotoLightboxModal
+        photos={job.photos || []}
+        initialIndex={lightboxIndex}
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+      />
     </AppLayout>
   );
 }

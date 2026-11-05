@@ -13,7 +13,18 @@ export async function PATCH(
 
   try {
     const { status } = await req.json();
-    const validStatuses = ["PENDING", "DIJADWALKAN", "DALAM_PENGERJAAN", "SELESAI", "DIBATALKAN"];
+    const validStatuses = [
+      "MENUNGGU_DISPOSISI",
+      "DIDISPOSISIKAN",
+      "MENUJU_LOKASI",
+      "TIBA_DI_LOKASI",
+      "DALAM_PENGERJAAN",
+      "MENUNGGU_VALIDASI",
+      "SELESAI",
+      "DIBATALKAN",
+      "PENDING",
+      "DIJADWALKAN",
+    ];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: "Status tidak valid" }, { status: 400 });
     }
@@ -26,10 +37,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Pekerjaan tidak ditemukan" }, { status: 404 });
     }
 
-    // Staff input can only update their own job's status
-    if (user.role === "STAFF_INPUT" && job.createdById !== user.id) {
+    // Staff input can only update their own job or jobs assigned to them
+    if (user.role === "STAFF_INPUT" && job.createdById !== user.id && job.assignedToId !== user.id) {
       return NextResponse.json(
-        { error: "Anda hanya dapat memperbarui status pekerjaan milik sendiri." },
+        { error: "Anda hanya dapat memperbarui status pekerjaan milik sendiri atau yang ditugaskan kepada Anda." },
         { status: 403 }
       );
     }

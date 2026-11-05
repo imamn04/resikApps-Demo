@@ -1,5 +1,6 @@
 import React from "react";
 import { JobStatus } from "@/types";
+import { JOB_STATUS_CONFIG } from "@/lib/utils";
 
 interface StatusBadgeProps {
   status: JobStatus | string;
@@ -7,68 +8,41 @@ interface StatusBadgeProps {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = "md" }) => {
-  const getBadgeConfig = (st: string) => {
-    switch (st) {
-      case "SELESAI":
-        return {
-          label: "Selesai",
-          bg: "bg-emerald-50 text-emerald-700 border-emerald-200/80",
-          dot: "bg-emerald-500",
-          pulse: false,
-        };
-      case "DALAM_PENGERJAAN":
-        return {
-          label: "Dalam Pengerjaan",
-          bg: "bg-amber-50 text-amber-800 border-amber-300",
-          dot: "bg-amber-500",
-          pulse: true,
-        };
-      case "DIJADWALKAN":
-        return {
-          label: "Dijadwalkan",
-          bg: "bg-blue-50 text-blue-800 border-blue-200",
-          dot: "bg-blue-600",
-          pulse: false,
-        };
-      case "PENDING":
-        return {
-          label: "Pending",
-          bg: "bg-yellow-50 text-yellow-800 border-yellow-300",
-          dot: "bg-yellow-500",
-          pulse: true,
-        };
-      case "DIBATALKAN":
-        return {
-          label: "Dibatalkan",
-          bg: "bg-rose-50 text-rose-700 border-rose-200",
-          dot: "bg-rose-500",
-          pulse: false,
-        };
-      default:
-        return {
-          label: st,
-          bg: "bg-slate-50 text-slate-700 border-slate-200",
-          dot: "bg-slate-400",
-          pulse: false,
-        };
-    }
+  const config = JOB_STATUS_CONFIG[status] || {
+    label: status.replace(/_/g, " "),
+    bg: "bg-slate-50",
+    text: "text-slate-700",
+    border: "border-slate-200",
+    dot: "bg-slate-500",
+    stepNumber: 0,
   };
 
-  const config = getBadgeConfig(status);
+  const isPulse =
+    status === "DALAM_PENGERJAAN" ||
+    status === "MENUJU_LOKASI" ||
+    status === "TIBA_DI_LOKASI" ||
+    status === "MENUNGGU_VALIDASI";
+
+  const sizeClasses =
+    size === "sm"
+      ? "text-[10px] px-2 py-0.5 gap-1.5"
+      : "text-xs px-2.5 py-1 gap-2";
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-bold rounded-full border shadow-2xs transition-all ${
-        config.bg
-      } ${size === "sm" ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs"}`}
+      className={`inline-flex items-center font-bold rounded-full border shadow-2xs transition-all tracking-wide ${config.bg} ${config.text} ${config.border} ${sizeClasses}`}
     >
       <span className="relative flex h-2 w-2">
-        {config.pulse && (
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75" />
+        {isPulse && (
+          <span
+            className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${config.dot}`}
+          />
         )}
-        <span className={`relative inline-flex rounded-full h-2 w-2 ${config.dot}`} />
+        <span
+          className={`relative inline-flex rounded-full h-2 w-2 ${config.dot}`}
+        />
       </span>
-      {config.label}
+      <span>{config.label}</span>
     </span>
   );
 };

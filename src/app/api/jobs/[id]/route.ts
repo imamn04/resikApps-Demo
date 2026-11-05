@@ -24,6 +24,12 @@ export async function GET(
         updatedBy: {
           select: { id: true, name: true, username: true },
         },
+        assignedTo: {
+          select: { id: true, name: true, username: true, phone: true },
+        },
+        validatedBy: {
+          select: { id: true, name: true, username: true },
+        },
         photos: {
           include: {
             uploadedBy: {
@@ -96,6 +102,9 @@ export async function PUT(
       discount,
       status,
       notes,
+      assignedToId,
+      isPool,
+      technicianCommission,
     } = body;
 
     // Update customer info if changed
@@ -139,12 +148,18 @@ export async function PUT(
         totalPrice,
         status: newStatus,
         notes: notes !== undefined ? notes : existingJob.notes,
+        assignedToId: assignedToId !== undefined ? assignedToId : existingJob.assignedToId,
+        isPool: isPool !== undefined ? isPool : existingJob.isPool,
+        technicianCommission: technicianCommission !== undefined ? parseFloat(technicianCommission) : existingJob.technicianCommission,
         updatedById: user.id,
         completedAt,
       },
       include: {
         customer: true,
         service: true,
+        assignedTo: {
+          select: { id: true, name: true, username: true, phone: true },
+        },
       },
     });
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthFromRequest, hasPermission } from "@/lib/auth";
 import { sanitizePhoneNumber } from "@/lib/utils";
+import { createNotification, createNotificationsForRole } from "@/lib/notifications";
 
 // Generate Unique Job Number: RP-YYYYMMDD-XXXX
 async function generateJobNumber(): Promise<string> {
@@ -48,28 +49,34 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") || "";
   const serviceId = searchParams.get("serviceId");
   const technician = searchParams.get("technician") || "";
-  const createdById = searchParams.get("createdById") || "";
-  const startDate = searchParams.get("startDate") || "";
-  const endDate = searchParams.get("endDate") || "";
-  const myOnly = searchParams.get("myOnly") === "true";
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const poolOnly = searchParams.get("pool") === "true";
+  const myJobsOnly = searchParams.get("myJobs") === "true";
 
   try {
     const whereClause: any = {
       isDeleted: false,
     };
 
-    // Staff input can filter by own or if required
-    if (myOnly || (user.role === "STAFF_INPUT" && searchParams.get("scope") === "mine")) {
-      whereClause.createdById = user.id;
-    } else if (createdById) {
-      whereClause.createdById = createdById;
+    // Filter khusus pool order (tersedia untuk diambil teknisi)
+    if (poolOnly) {
+      whereClause.isPool = true;
+      whereClause.assignedToId = null;
+      whereClause.status = "DIDISPOSISIKAN";
+    } else if (myJobsOnly && user.role === "STAFF_INPUT") {
+      whereClause.OR = [
+        { assignedToId: user.id },
+        { createdById: user.id },
+        { technicianName: { contains: user.name } },
+      ];
     }
 
     if (status && status !== "ALL") {
       whereClause.status = status;
     }
 
-    if (serviceId && serviceId !== "ALL") {
+    if (serviceId) {
       whereClause.serviceId = parseInt(serviceId, 10);
     }
 
@@ -110,6 +117,12 @@ export async function GET(req: NextRequest) {
       include: {
         customer: true,
         service: true,
+        assignedTo: {
+          select: { id: true, name: true, username: true, phone: true },
+        },
+        validatedBy: {
+          select: { id: true, name: true },
+        },
         createdBy: {
           select: { id: true, name: true, username: true },
         },
@@ -123,6 +136,7 @@ export async function GET(req: NextRequest) {
             filePath: true,
             fileName: true,
             caption: true,
+            createdAt: true,
           },
         },
       },
@@ -138,8 +152,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = getAuthFromRequest(req);
-  if (!user || !hasPermission(user.role, ["OWNER", "ADMIN", "STAFF_INPUT"])) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || !hasPermission(user.role, ["OWNER", "ADMIN"])) {
+    return NextResponse.json(
+      { error: "Hanya Admin dan Owner yang memiliki akses mendaftarkan order pekerjaan baru" },
+      { status: 403 }
+    );
   }
 
   try {
@@ -153,6 +170,9 @@ export async function POST(req: NextRequest) {
       scheduledDate,
       scheduledTime,
       technicianName,
+      assignedToId,
+      isPool,
+      technicianCommission,
       basePrice,
       extraFee,
       discount,
@@ -175,7 +195,6 @@ export async function POST(req: NextRequest) {
     });
 
     if (customer) {
-      // Update name or address if provided
       customer = await prisma.customer.update({
         where: { id: customer.id },
         data: {
@@ -203,6 +222,16 @@ export async function POST(req: NextRequest) {
     const numDiscount = parseFloat(discount) || 0;
     const totalPrice = Math.max(0, numBasePrice + numExtraFee - numDiscount);
 
+    // Default komisi teknisi: 15% dari total harga jika tidak diatur manual
+    const commission =
+      technicianCommission !== undefined
+        ? parseFloat(technicianCommission)
+        : Math.round(totalPrice * 0.15);
+
+    // Initial Status: Admin registers -> MENUNGGU_DISPOSISI
+    const initialStatus =
+      status || (assignedToId ? "DIDISPOSISIKAN" : isPool ? "DIDISPOSISIKAN" : "MENUNGGU_DISPOSISI");
+
     // 4. Create Job
     const job = await prisma.job.create({
       data: {
@@ -213,29 +242,34 @@ export async function POST(req: NextRequest) {
         scheduledDate,
         scheduledTime: scheduledTime || null,
         technicianName: technicianName || "",
+        assignedToId: assignedToId || null,
+        isPool: Boolean(isPool),
+        technicianCommission: commission,
         basePrice: numBasePrice,
         extraFee: numExtraFee,
         discount: numDiscount,
         totalPrice,
-        status: status || "PENDING",
+        status: initialStatus,
         notes: notes || "",
         createdById: user.id,
       },
       include: {
         customer: true,
         service: true,
+        assignedTo: {
+          select: { id: true, name: true, phone: true },
+        },
         createdBy: {
           select: { id: true, name: true, username: true },
         },
       },
     });
 
-    // 5. Update Customer Total Orders and Spent if finished
+    // 5. Update Customer Total Orders
     await prisma.customer.update({
       where: { id: customer.id },
       data: {
         totalOrders: { increment: 1 },
-        totalSpent: { increment: status === "SELESAI" ? totalPrice : 0 },
       },
     });
 
@@ -248,11 +282,43 @@ export async function POST(req: NextRequest) {
           entity: "JOB",
           entityId: job.id,
           jobId: job.id,
-          details: `Job baru diterbitkan: ${jobNumber} (${customer.name}) oleh ${user.name}`,
+          details: `Job baru diregistrasi: ${jobNumber} (${customer.name}) oleh ${user.name}. Status: ${job.status}`,
           ipAddress: req.headers.get("x-forwarded-for") || "127.0.0.1",
         },
       });
     } catch {}
+
+    // 7. Trigger In-App Notifications
+    try {
+      if (job.status === "MENUNGGU_DISPOSISI") {
+        // Beritahu Owner bahwa ada order baru yang menunggu persetujuan / disposisi teknisi
+        await createNotificationsForRole("OWNER", {
+          title: "Order Baru Menunggu Disposisi",
+          message: `${user.name} mendaftarkan ${job.jobNumber} (${job.service.name}) untuk ${customer.name}. Menunggu disposisi teknisi.`,
+          type: "APPROVAL",
+          linkUrl: `/jobs/${job.id}`,
+        });
+      } else if (assignedToId) {
+        // Beritahu teknisi yang langsung ditugaskan
+        await createNotification({
+          userId: assignedToId,
+          title: "Tugas Baru Ditugaskan ke Anda!",
+          message: `Anda ditugaskan mengerjakan ${job.service.name} (${job.jobNumber}) untuk ${customer.name}.`,
+          type: "DISPATCH",
+          linkUrl: `/jobs/${job.id}`,
+        });
+      } else if (isPool) {
+        // Beritahu semua teknisi bahwa order terbuka siap diklaim di antrean pool
+        await createNotificationsForRole("STAFF_INPUT", {
+          title: "Order Tersedia di Antrean Pool!",
+          message: `Order ${job.service.name} (${job.jobNumber}) siap diambil di Antrean Terbuka.`,
+          type: "POOL",
+          linkUrl: `/jobs/${job.id}`,
+        });
+      }
+    } catch (notifErr) {
+      console.error("Failed to send job creation notification:", notifErr);
+    }
 
     return NextResponse.json({ success: true, job }, { status: 201 });
   } catch (error: any) {
@@ -260,4 +326,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-

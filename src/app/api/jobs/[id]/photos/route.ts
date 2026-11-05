@@ -47,10 +47,11 @@ export async function POST(
     const publicUrl = `/uploads/jobs/${job.jobNumber}/${safeName}`;
 
     // Record to database
+    const validPhotoType = ["BEFORE", "AFTER", "CHECKIN"].includes(photoType) ? photoType : "BEFORE";
     const jobPhoto = await prisma.jobPhoto.create({
       data: {
         jobId: job.id,
-        photoType: photoType === "AFTER" ? "AFTER" : "BEFORE",
+        photoType: validPhotoType as any,
         filePath: publicUrl,
         fileName: file.name,
         fileSize: buffer.length,

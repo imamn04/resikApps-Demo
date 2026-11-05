@@ -8,7 +8,10 @@
     --foreground: 222 47% 11%;
   }
 
+  html,
   body {
+    overflow-x: hidden;
+    max-width: 100vw;
     background-color: #F4F7FE;
     color: #1B254B;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -66,16 +69,56 @@
   scrollbar-width: none;
 }
 
+/* Modal Open Overlay Safety: Suppress background bottom navbar on mobile */
+body.modal-open .mobile-bottom-nav,
+body.modal-open footer {
+  display: none !important;
+}
+
 /* Print Styling */
 @media print {
-  .no-print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  /* Force hide all web navigation, layout chrome, and interactive controls */
+  header,
+  aside,
+  nav,
+  footer,
+  .no-print,
+  [data-print="hide"] {
     display: none !important;
   }
+
+  /* Force display only printable elements */
   .print-only {
     display: block !important;
   }
+
+  /* Reset layout constraints so document fills printable paper without web artifacts */
+  html,
   body {
-    background: white !important;
-    color: black !important;
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    color: #0F172A !important;
+    font-size: 11pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Remove distracting drop shadows and transforms in printed output */
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
   }
 }

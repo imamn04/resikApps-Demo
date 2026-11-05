@@ -25,6 +25,7 @@ import {
   Banknote,
 } from "lucide-react";
 import { AuthUser } from "@/types";
+import NotificationBellDropdown from "@/components/layout/NotificationBellDropdown";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -128,7 +129,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       label: "Input Job Baru",
       href: "/jobs/new",
       icon: PlusCircle,
-      roles: ["OWNER", "ADMIN", "STAFF_INPUT"],
+      roles: ["OWNER", "ADMIN"],
       highlight: true,
     },
     {
@@ -186,10 +187,29 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
+  const getPageInfo = (path: string) => {
+    if (path === "/dashboard") return { breadcrumb: "Dashboard Operasional", title: "Ringkasan Operasional" };
+    if (path === "/jobs/new") return { breadcrumb: "Layanan / Registrasi", title: "Input Order Pekerjaan Baru" };
+    if (path === "/jobs") return { breadcrumb: "Layanan", title: "Daftar Pekerjaan & Status" };
+    if (path.startsWith("/jobs/")) return { breadcrumb: "Layanan / Detail Order", title: "Detail Pekerjaan & Tracking" };
+    if (path === "/expenses") return { breadcrumb: "Keuangan", title: "Biaya & Pengeluaran Operasional" };
+    if (path === "/payroll") return { breadcrumb: "Keuangan", title: "Manajemen Gaji & Komisi Teknisi" };
+    if (path === "/customers") return { breadcrumb: "Pelanggan", title: "Database Pelanggan (CRM)" };
+    if (path === "/reports") return { breadcrumb: "Analitik", title: "Laporan & Rekapitulasi" };
+    if (path === "/users") return { breadcrumb: "Pengaturan", title: "Manajemen Pengguna & Akun" };
+    if (path === "/audit-logs") return { breadcrumb: "Sistem", title: "Audit Trail & Log Aktivitas" };
+    return {
+      breadcrumb: "Sistem",
+      title: "Resik Purwokerto Management System",
+    };
+  };
+
+  const pageInfo = getPageInfo(pathname);
+
   return (
     <div className="min-h-screen bg-[#F4F7FE] flex flex-col md:flex-row font-sans text-[#1B254B]">
       {/* Mobile Top Header */}
-      <header className="md:hidden flex items-center justify-between bg-[#111C44] text-white px-4 py-3 sticky top-0 z-40 shadow-md">
+      <header className="md:hidden flex items-center justify-between bg-[#111C44] text-white px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sticky top-0 z-40 shadow-md no-print">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-[#111C44] font-black text-sm shadow-horizon-glow">
             RP
@@ -204,18 +224,21 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
         </div>
 
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-xl bg-[#1B254B] text-slate-100 hover:bg-[#253266] transition-colors"
-          aria-label="Toggle menu"
-        >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <NotificationBellDropdown />
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 rounded-xl bg-[#1B254B] text-slate-100 hover:bg-[#253266] transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </header>
 
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex animate-fade-in">
+        <div className="fixed inset-0 z-50 md:hidden flex animate-fade-in no-print">
           <div
             className="fixed inset-0 bg-[#0B1437]/70 backdrop-blur-sm transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
@@ -293,11 +316,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
       )}
 
-      {/* Desktop Horizon Navy Sidebar */}
-      <aside className="hidden md:flex flex-col justify-between w-64 bg-[#111C44] text-white shrink-0 min-h-screen sticky top-0 h-screen select-none shadow-horizon-navy z-40">
-        <div>
+      {/* Desktop Horizon Navy Sidebar (Permanently Fixed to Viewport Left) */}
+      <aside className="hidden md:flex flex-col justify-between w-64 bg-[#111C44] text-white fixed inset-y-0 left-0 h-screen select-none shadow-horizon-navy z-40 no-print">
+        {/* Top: Logo & Scrollable Navigation Menu */}
+        <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col min-h-0">
           {/* Logo & Brand Header */}
-          <div className="p-6 border-b border-[#1B254B] flex items-center gap-3.5">
+          <div className="p-6 border-b border-[#1B254B] flex items-center gap-3.5 shrink-0 bg-[#111C44]">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 flex items-center justify-center text-[#111C44] font-black text-2xl shadow-horizon-glow ring-4 ring-amber-400/20">
               RP
             </div>
@@ -315,7 +339,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           {/* Navigation Links */}
-          <nav className="px-4 space-y-1.5 mt-4">
+          <nav className="px-4 space-y-1.5 mt-4 pb-4">
             <p className="px-3 text-[10px] font-extrabold uppercase tracking-widest text-[#707E94] mb-2">
               Menu Utama
             </p>
@@ -353,8 +377,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </nav>
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 border-t border-[#1B254B]">
+        {/* Pinned Bottom Footer Actions */}
+        <div className="p-4 border-t border-[#1B254B] bg-[#111C44] shrink-0">
           {/* Compact User Info in Sidebar Footer */}
           <div className="flex items-center gap-3 px-1 mb-3">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 text-[#111C44] font-black flex items-center justify-center text-xs shadow-xs shrink-0">
@@ -382,24 +406,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      {/* Main Content Area (Offset by md:pl-64 so it never underlaps the fixed sidebar) */}
+      <main className="flex-1 flex flex-col min-w-0 md:pl-64">
         {/* Desktop Top Header Bar (Horizon Floating Bar) */}
-        <div className="hidden md:flex items-center justify-between mx-8 mt-5 px-6 py-4 horizon-glass rounded-3xl sticky top-4 z-30">
+        <div className="hidden md:flex items-center justify-between mx-8 mt-5 px-6 py-4 horizon-glass rounded-3xl sticky top-4 z-30 no-print">
           <div className="flex flex-col">
             <div className="flex items-center gap-2 text-xs font-bold text-[#707E94]">
               <span>Resik Purwokerto</span>
               <span>/</span>
-              <span className="text-[#1B254B] capitalize font-extrabold">
-                {pathname === "/dashboard"
-                  ? "Dashboard Operasional"
-                  : pathname.replace("/", "").replace("-", " ")}
+              <span className="text-[#1B254B] font-extrabold">
+                {pageInfo.breadcrumb}
               </span>
             </div>
-            <h2 className="text-lg font-black text-[#1B254B] capitalize mt-0.5">
-              {pathname === "/dashboard"
-                ? "Ringkasan Operasional"
-                : pathname.replace("/", "").replace("-", " ")}
+            <h2 className="text-lg font-black text-[#1B254B] mt-0.5">
+              {pageInfo.title}
             </h2>
           </div>
 
@@ -409,6 +429,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
               <Clock className="w-3.5 h-3.5 text-amber-500" />
               <span>{currentTime || "Purwokerto"}</span>
             </div>
+
+            {/* Notification Bell Dropdown */}
+            <NotificationBellDropdown />
 
             {/* User Role Pill */}
             <span
@@ -436,13 +459,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         {/* Content Body */}
-        <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full animate-fade-in pb-20 md:pb-8">
+        <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full animate-fade-in pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-8">
           {children}
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation Bar (Thumb Friendly with Floating Button) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2 z-40 flex items-center justify-around shadow-2xl">
+      {/* Mobile Bottom Navigation Bar (Thumb Friendly with Floating Button & iOS Safe Area) */}
+      <div className="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] z-40 flex items-center justify-around shadow-2xl no-print">
         <Link
           href="/dashboard"
           className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors ${

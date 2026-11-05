@@ -1,13 +1,18 @@
 export type UserRole = "OWNER" | "ADMIN" | "STAFF_INPUT" | "VIEWER";
 
 export type JobStatus =
-  | "PENDING"
-  | "DIJADWALKAN"
+  | "MENUNGGU_DISPOSISI"
+  | "DIDISPOSISIKAN"
+  | "MENUJU_LOKASI"
+  | "TIBA_DI_LOKASI"
   | "DALAM_PENGERJAAN"
+  | "MENUNGGU_VALIDASI"
   | "SELESAI"
-  | "DIBATALKAN";
+  | "DIBATALKAN"
+  | "PENDING"
+  | "DIJADWALKAN";
 
-export type PhotoType = "BEFORE" | "AFTER";
+export type PhotoType = "CHECKIN" | "BEFORE" | "AFTER";
 
 export type PayrollStatus = "DRAFT" | "APPROVED" | "PAID";
 
@@ -69,7 +74,29 @@ export interface JobData {
   extraFee: number;
   discount: number;
   totalPrice: number;
+  technicianCommission: number;
+  commissionStatus: "UNPAID" | "PAID";
+  commissionPaidAt?: string | null;
+  commissionPaymentMethod?: string | null;
+  commissionProofPath?: string | null;
+  commissionNotes?: string | null;
   status: JobStatus;
+  isPool: boolean;
+  assignedToId?: string | null;
+  assignedTo?: {
+    id: string;
+    name: string;
+    username: string;
+    phone?: string | null;
+  } | null;
+  checkinAt?: string | null;
+  checkinNotes?: string | null;
+  validatedAt?: string | null;
+  validatedById?: string | null;
+  validatedBy?: {
+    id: string;
+    name: string;
+  } | null;
   notes?: string | null;
   createdById: string;
   createdBy: {
@@ -121,4 +148,34 @@ export interface PayrollSlipData {
   };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ExpenseData {
+  id: string;
+  title: string;
+  category: string;
+  amount: number;
+  expenseDate: string;
+  receiptUrl?: string | null;
+  notes?: string | null;
+  createdById: string;
+  createdBy?: {
+    id: string;
+    name: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CashflowSummary {
+  totalRevenue: number;
+  totalExpense: number;
+  monthlySalesCount: number;
+  currentBalance: number;
+  sevenDaysTrend: {
+    date: string;
+    dayName: string;
+    income: number;
+    expense: number;
+  }[];
 }

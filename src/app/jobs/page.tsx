@@ -232,10 +232,13 @@ export default function JobsPage() {
               className="w-full px-3 py-2 bg-[#F4F7FE] border border-slate-200 rounded-xl font-bold text-[#1B254B] focus:outline-none focus:ring-1 focus:ring-amber-500"
             >
               <option value="ALL">Semua Status</option>
-              <option value="PENDING">Pending</option>
-              <option value="DIJADWALKAN">Dijadwalkan</option>
-              <option value="DALAM_PENGERJAAN">Dalam Pengerjaan</option>
-              <option value="SELESAI">Selesai</option>
+              <option value="MENUNGGU_DISPOSISI">1. Menunggu Disposisi</option>
+              <option value="DIDISPOSISIKAN">2. Didisposisikan</option>
+              <option value="MENUJU_LOKASI">3. Menuju Lokasi (OTW)</option>
+              <option value="TIBA_DI_LOKASI">4. Tiba di Lokasi</option>
+              <option value="DALAM_PENGERJAAN">5. Dalam Pengerjaan</option>
+              <option value="MENUNGGU_VALIDASI">6. Menunggu Validasi Owner</option>
+              <option value="SELESAI">7. Selesai (Tervalidasi)</option>
               <option value="DIBATALKAN">Dibatalkan</option>
             </select>
           </div>

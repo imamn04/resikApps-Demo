@@ -21,12 +21,16 @@ model User {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  createdJobs    Job[]       @relation("JobCreatedBy")
-  updatedJobs    Job[]       @relation("JobUpdatedBy")
-  uploadedPhotos JobPhoto[]
-  auditLogs      AuditLog[]
-  payrollSlips   PayrollSlip[] @relation("UserPayrolls")
+  createdJobs     Job[]         @relation("JobCreatedBy")
+  updatedJobs     Job[]         @relation("JobUpdatedBy")
+  assignedJobs    Job[]         @relation("JobAssignedTo")
+  validatedJobs   Job[]         @relation("JobValidatedBy")
+  uploadedPhotos  JobPhoto[]
+  auditLogs       AuditLog[]
+  payrollSlips    PayrollSlip[] @relation("UserPayrolls")
   createdPayrolls PayrollSlip[] @relation("PayrollCreatedBy")
+  createdExpenses Expense[]     @relation("ExpenseCreatedBy")
+  notifications   Notification[] @relation("UserNotifications")
 
   @@map("users")
 }
@@ -61,30 +65,44 @@ model Service {
 }
 
 model Job {
-  id             String    @id @default(uuid())
-  jobNumber      String    @unique
-  customerId     String
-  customer       Customer  @relation(fields: [customerId], references: [id])
-  serviceId      Int
-  service        Service   @relation(fields: [serviceId], references: [id])
-  jobDetails     String?   @db.Text
-  scheduledDate  String    // YYYY-MM-DD
-  scheduledTime  String?   // HH:mm
-  technicianName String?
-  basePrice      Float     @default(0)
-  extraFee       Float     @default(0)
-  discount       Float     @default(0)
-  totalPrice     Float     @default(0)
-  status         String    @default("PENDING") // PENDING, DIJADWALKAN, DALAM_PENGERJAAN, SELESAI, DIBATALKAN
-  notes          String?   @db.Text
-  createdById    String
-  createdBy      User      @relation("JobCreatedBy", fields: [createdById], references: [id])
-  updatedById    String?
-  updatedBy      User?     @relation("JobUpdatedBy", fields: [updatedById], references: [id])
-  completedAt    DateTime?
-  isDeleted      Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                   String    @id @default(uuid())
+  jobNumber            String    @unique
+  customerId           String
+  customer             Customer  @relation(fields: [customerId], references: [id])
+  serviceId            Int
+  service              Service   @relation(fields: [serviceId], references: [id])
+  jobDetails           String?   @db.Text
+  scheduledDate        String    // YYYY-MM-DD
+  scheduledTime        String?   // HH:mm
+  technicianName       String?
+  basePrice            Float     @default(0)
+  extraFee             Float     @default(0)
+  discount             Float     @default(0)
+  totalPrice           Float     @default(0)
+  technicianCommission    Float     @default(0) // Estimasi komisi teknisi (default 15%)
+  commissionStatus        String    @default("UNPAID") // UNPAID, PAID
+  commissionPaidAt        DateTime?
+  commissionPaymentMethod String?   // TRANSFER_BCA, TRANSFER_BRI, TRANSFER_MANDIRI, CASH
+  commissionProofPath     String?   // Foto / Bukti Struk Transfer Bank
+  commissionNotes         String?   @db.Text
+  status                  String    @default("MENUNGGU_DISPOSISI") // MENUNGGU_DISPOSISI, DIDISPOSISIKAN, MENUJU_LOKASI, TIBA_DI_LOKASI, DALAM_PENGERJAAN, MENUNGGU_VALIDASI, SELESAI, DIBATALKAN
+  isPool               Boolean   @default(false) // Jika true, teknisi bisa ambil sendiri ala Gojek
+  assignedToId         String?
+  assignedTo           User?     @relation("JobAssignedTo", fields: [assignedToId], references: [id])
+  checkinAt            DateTime?
+  checkinNotes         String?   @db.Text
+  validatedAt          DateTime?
+  validatedById        String?
+  validatedBy          User?     @relation("JobValidatedBy", fields: [validatedById], references: [id])
+  notes                String?   @db.Text
+  createdById          String
+  createdBy            User      @relation("JobCreatedBy", fields: [createdById], references: [id])
+  updatedById          String?
+  updatedBy            User?     @relation("JobUpdatedBy", fields: [updatedById], references: [id])
+  completedAt          DateTime?
+  isDeleted            Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   photos    JobPhoto[]
   auditLogs AuditLog[]
@@ -96,7 +114,7 @@ model JobPhoto {
   id           String   @id @default(uuid())
   jobId        String
   job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  photoType    String   // BEFORE, AFTER
+  photoType    String   // CHECKIN, BEFORE, AFTER
   filePath     String
   fileName     String
   fileSize     Int?
@@ -112,8 +130,8 @@ model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action    String   // CREATE, UPDATE, STATUS_CHANGE, DELETE, LOGIN
-  entity    String   // JOB, CUSTOMER, USER, SERVICE
+  action    String   // CREATE, UPDATE, STATUS_CHANGE, DELETE, LOGIN, DISPOSITION, VALIDATION
+  entity    String   // JOB, CUSTOMER, USER, SERVICE, PAYROLL, EXPENSE
   entityId  String?
   details   String?  @db.Text // JSON string or notes
   ipAddress String?
@@ -151,4 +169,35 @@ model PayrollSlip {
   updatedAt      DateTime  @updatedAt
 
   @@map("payroll_slips")
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  title       String
+  category    String   // OPERASIONAL, PERALATAN, TRANSPORT, KONSUMSI, LAINNYA
+  amount      Float
+  expenseDate String   // YYYY-MM-DD
+  receiptUrl  String?
+  notes       String?  @db.Text
+  createdById String
+  createdBy   User     @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("expenses")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String   @db.Text
+  type      String   @default("INFO") // DISPATCH, APPROVAL, VALIDATION, POOL, SYSTEM
+  linkUrl   String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("notifications")
 }

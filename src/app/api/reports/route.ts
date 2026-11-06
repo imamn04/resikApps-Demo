@@ -43,18 +43,62 @@ export async function GET(req: NextRequest) {
       where: { ...baseWhere, status: "DIBATALKAN" },
     });
 
-    // 2. Revenue / Omzet
+    // 2. Revenue / Omzet & Financial Summary
     const completedRevenueAgg = await prisma.job.aggregate({
       where: { ...baseWhere, status: "SELESAI" },
-      _sum: { totalPrice: true },
+      _sum: {
+        totalPrice: true,
+        technicianCommission: true,
+      },
     });
     const totalRevenue = completedRevenueAgg._sum.totalPrice || 0;
+    const totalCommission = completedRevenueAgg._sum.technicianCommission || 0;
 
     const allRevenueAgg = await prisma.job.aggregate({
       where: { ...baseWhere, status: { not: "DIBATALKAN" } },
       _sum: { totalPrice: true },
     });
     const potentialRevenue = allRevenueAgg._sum.totalPrice || 0;
+
+    // Expenses calculation within the period
+    const expenseWhere: any = {};
+    if (startDate && endDate) {
+      expenseWhere.expenseDate = { gte: startDate, lte: endDate };
+    }
+    const expenseAgg = await prisma.expense.aggregate({
+      where: expenseWhere,
+      _sum: { amount: true },
+    });
+    const totalExpenses = expenseAgg._sum.amount || 0;
+
+    const netProfit = totalRevenue - totalCommission - totalExpenses;
+    const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+    const commissionMargin = totalRevenue > 0 ? (totalCommission / totalRevenue) * 100 : 0;
+    const expenseMargin = totalRevenue > 0 ? (totalExpenses / totalRevenue) * 100 : 0;
+
+    const topExpenses = await prisma.expense.findMany({
+      where: expenseWhere,
+      take: 4,
+      orderBy: { amount: "desc" },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        amount: true,
+        expenseDate: true,
+      },
+    });
+
+    const financialSummary = {
+      grossRevenue: totalRevenue,
+      technicianCommissions: totalCommission,
+      operationalExpenses: totalExpenses,
+      netProfit,
+      netMargin: Math.round(netMargin * 10) / 10,
+      commissionMargin: Math.round(commissionMargin * 10) / 10,
+      expenseMargin: Math.round(expenseMargin * 10) / 10,
+      topExpenses,
+    };
 
     // 3. Breakdown by Service
     const services = await prisma.service.findMany({
@@ -221,6 +265,7 @@ export async function GET(req: NextRequest) {
       serviceStats,
       technicianStats,
       staffStats,
+      financialSummary: user.role === "STAFF_INPUT" ? null : financialSummary,
       monthlyTrend: user.role === "STAFF_INPUT" ? [] : monthlyTrend,
       recentLogs,
       todayJobs: todayJobsList,

@@ -14,6 +14,8 @@ import {
   UserCheck,
   Sparkles,
   FileSpreadsheet,
+  Wallet,
+  ArrowUpRight,
 } from "lucide-react";
 
 export default function ReportsPage() {
@@ -299,46 +301,128 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Table: Breakdown Pengguna Penginput */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
-              <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-emerald-600" />
-                Rekap Produktivitas Staf Input
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-500 text-[10px] uppercase">
-                      <th className="py-2.5 px-3">Nama Akun</th>
-                      <th className="py-2.5 px-3">Role</th>
-                      <th className="py-2.5 px-3 text-center">Total Job Diinput</th>
-                      <th className="py-2.5 px-3 text-right">Nilai Transaksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {reportData.staffStats?.map((st: any) => (
-                      <tr key={st.id} className="hover:bg-slate-50/70">
-                        <td className="py-2.5 px-3 font-bold text-slate-800">
-                          {st.name}{" "}
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            (@{st.username})
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-semibold">
-                            {st.role}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-bold text-blue-900">
-                          {st.jobCount}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-slate-900">
-                          {formatRupiah(st.revenue)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* Card: Ringkasan Laba Bersih & Margin Finansial Riil (Owner Financial Insight) */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-emerald-600" />
+                    <span>Laba Bersih & Estimasi Margin Riil</span>
+                  </h2>
+                  {reportData.financialSummary && (
+                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Margin: {reportData.financialSummary.netMargin}%
+                    </span>
+                  )}
+                </div>
+
+                {reportData.financialSummary ? (
+                  <div className="space-y-4">
+                    {/* Big Net Profit Display */}
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-[#111C44] via-[#1B254B] to-[#0B1437] text-white flex items-center justify-between shadow-xs">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block mb-0.5">
+                          Estimasi Profit Bersih (Net Profit)
+                        </span>
+                        <h3 className="text-xl sm:text-2xl font-black text-white">
+                          {formatRupiah(reportData.financialSummary.netProfit)}
+                        </h3>
+                        <p className="text-[11px] text-slate-300 mt-1">
+                          Laba bersih riil setelah komisi & biaya operasional
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-400/30 shrink-0">
+                        <TrendingUp className="w-6 h-6" />
+                      </div>
+                    </div>
+
+                    {/* Breakdown List */}
+                    <div className="space-y-2 text-xs">
+                      {/* Row 1: Omzet Kotor */}
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          Total Penerimaan Omzet (Kotor)
+                        </span>
+                        <span className="font-bold text-emerald-700">
+                          +{formatRupiah(reportData.financialSummary.grossRevenue)}
+                        </span>
+                      </div>
+
+                      {/* Row 2: Komisi Teknisi */}
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500" />
+                          Beban Komisi Teknisi (Lapangan)
+                        </span>
+                        <span className="font-bold text-amber-700">
+                          -{formatRupiah(reportData.financialSummary.technicianCommissions)}
+                        </span>
+                      </div>
+
+                      {/* Row 3: Biaya Operasional / Expenses */}
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-rose-500" />
+                          Biaya Operasional & Bahan (Chemical/Bensin)
+                        </span>
+                        <span className="font-bold text-rose-700">
+                          -{formatRupiah(reportData.financialSummary.operationalExpenses)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Proportional Stacked Track Bar */}
+                    <div>
+                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1">
+                        <span>Alokasi Perputaran Uang</span>
+                        <span>100% Total Omzet</span>
+                      </div>
+                      <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                        <div
+                          style={{ width: `${Math.max(5, reportData.financialSummary.netMargin)}%` }}
+                          className="h-full bg-emerald-500 transition-all duration-500"
+                          title={`Laba Bersih: ${reportData.financialSummary.netMargin}%`}
+                        />
+                        <div
+                          style={{ width: `${Math.max(0, reportData.financialSummary.commissionMargin)}%` }}
+                          className="h-full bg-amber-500 transition-all duration-500"
+                          title={`Komisi Teknisi: ${reportData.financialSummary.commissionMargin}%`}
+                        />
+                        <div
+                          style={{ width: `${Math.max(0, reportData.financialSummary.expenseMargin)}%` }}
+                          className="h-full bg-rose-500 transition-all duration-500"
+                          title={`Beban Operasional: ${reportData.financialSummary.expenseMargin}%`}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1.5 font-medium">
+                        <span className="text-emerald-700 font-bold">● Laba Bersih ({reportData.financialSummary.netMargin}%)</span>
+                        <span className="text-amber-700 font-bold">● Komisi ({reportData.financialSummary.commissionMargin}%)</span>
+                        <span className="text-rose-700 font-bold">● Biaya ({reportData.financialSummary.expenseMargin}%)</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 text-center py-8">Memuat ringkasan laba bersih...</p>
+                )}
+              </div>
+
+              {/* Bottom Quick Navigation */}
+              <div className="pt-3 mt-4 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <a
+                  href="/expenses"
+                  className="font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 transition-colors"
+                >
+                  Kelola Biaya Operasional
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href="/payroll"
+                  className="font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                >
+                  Rincian Komisi Teknisi
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </a>
               </div>
             </div>
           </div>

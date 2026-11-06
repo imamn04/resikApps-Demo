@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { formatRupiah, formatDateID } from "@/lib/utils";
+import { exportReportPDF } from "@/lib/reportPdfGenerator";
 import {
   BarChart3,
   Download,
@@ -26,6 +27,7 @@ export default function ReportsPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const fetchReports = async () => {
     setLoading(true);
@@ -91,6 +93,27 @@ export default function ReportsPage() {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!reportData) return;
+    setDownloadingPdf(true);
+    try {
+      await exportReportPDF(reportData, startDate, endDate);
+    } catch (err) {
+      console.error("Gagal generate PDF laporan:", err);
+      alert("Terjadi kendala saat menyusun PDF laporan.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleOpenPrintView = () => {
+    const params = new URLSearchParams();
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+    params.append("auto", "true");
+    window.open(`/reports/print?${params.toString()}`, "_blank");
+  };
+
   return (
     <AppLayout>
       {/* Header */}
@@ -104,22 +127,47 @@ export default function ReportsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tombol Export Excel */}
           <button
             onClick={handleDownloadExcel}
             disabled={downloadingExcel}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-[#111C44] font-black text-xs sm:text-sm shadow-horizon-glow transition-all cursor-pointer active:scale-[0.98]"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-[#111C44] font-black text-xs sm:text-sm shadow-horizon-glow transition-all cursor-pointer active:scale-[0.98]"
+            title="Download Rekap Data Format Excel Spreadsheet"
           >
             <FileSpreadsheet className="w-4 h-4 text-[#111C44]" />
             <span>Export Excel (.xlsx)</span>
           </button>
 
+          {/* Tombol Unduh PDF Vector Resmi */}
           <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-[#1B254B] font-bold text-xs sm:text-sm shadow-xs transition-all"
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf || loading || !reportData}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#111C44] hover:bg-[#1B254B] text-amber-400 font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50"
+            title="Unduh File PDF Laporan Resmi (Vektor Bersih A4 Tanpa Tampilan Web)"
           >
-            <Printer className="w-4 h-4 text-amber-500" />
-            <span>Cetak PDF Laporan</span>
+            {downloadingPdf ? (
+              <>
+                <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                <span>Menyiapkan PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 text-amber-400" />
+                <span>Unduh PDF Resmi</span>
+              </>
+            )}
+          </button>
+
+          {/* Tombol Cetak Fisik / Print View A4 */}
+          <button
+            onClick={handleOpenPrintView}
+            disabled={loading || !reportData}
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-[#1B254B] font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50"
+            title="Buka Lembar A4 Siap Cetak ke Printer Fisik"
+          >
+            <Printer className="w-4 h-4 text-slate-500" />
+            <span>Cetak Print A4</span>
           </button>
         </div>
       </div>
